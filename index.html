@@ -20,10 +20,12 @@
   }
   #hud .title { color:#f0f8f2; font-weight:800; letter-spacing:.12em; }
   #hint { color:#a8c0bb; }
-  #touchbar {
-    position:fixed; right:12px; bottom:12px; display:flex; gap:8px; z-index:3;
-    opacity:.8;
-  }
+  #touchbar { position:fixed; right:12px; bottom:12px; display:flex; gap:7px; z-index:3; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100vw - 24px); }
+  #panel { position:fixed; right:12px; top:12px; z-index:4; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:min(520px,calc(100vw - 24px)); }
+  #help { position:fixed; inset:0; z-index:8; display:none; overflow:auto; padding:22px; background:rgba(3,7,14,.94); color:#dcebe8; font:14px/1.65 ui-monospace,monospace; }
+  #help.open {display:block} #help h2{margin-top:0;color:#fff} #help .close{position:sticky;top:0;float:right}
+  #touchbar button,#panel button { min-height:38px; touch-action:manipulation; }
+  @media (max-width:600px) { #hud {font-size:10px; left:7px;top:7px;max-width:calc(100vw - 14px);padding:7px 9px} #touchbar{right:7px;bottom:7px;left:7px;justify-content:center} #panel{top:auto;bottom:58px;left:7px;right:7px;justify-content:center;max-width:none} #panel button{padding:8px 10px;font-size:11px} }
   button {
     border:1px solid rgba(200,225,230,.25); color:#e6f4f2; background:rgba(5,10,18,.62);
     padding:9px 12px; border-radius:6px; font:inherit; font-size:12px;
@@ -39,8 +41,22 @@
   <div id="stats">Ночной город за запотевшим стеклом</div>
   <div id="hint">Пробел — пауза · ↑/↓ яркость · ←/→ дождь · L — молния · H — подсказка · тянуть мышью/пальцем — протереть стекло · +/- — детализация</div>
 </div>
+<div id="panel">
+  <button id="rainDown">Дождь −</button><button id="rainUp">Дождь +</button>
+  <button id="brightDown">Яркость −</button><button id="brightUp">Яркость +</button>
+  <button id="qualityBtn">Качество: авто</button><button id="helpBtn">Управление</button>
+</div>
 <div id="touchbar">
   <button id="pauseBtn">Пауза</button><button id="boltBtn">Молния</button>
+</div>
+<div id="help">
+  <button class="close" id="closeHelp">Закрыть ✕</button>
+  <h2>ASCII RAIN ON GLASS — управление</h2>
+  <h3>Телефон / планшет</h3>
+  <p>• Проводи пальцем по стеклу, чтобы протереть его.<br>• Пауза — остановить / продолжить симуляцию.<br>• Молния — вызвать вспышку.<br>• Дождь − / + — изменить интенсивность капель.<br>• Яркость − / + — изменить яркость ASCII-сцены.<br>• Качество — переключить авто / эконом / стандарт.</p>
+  <h3>Компьютер</h3>
+  <p>• Пробел — пауза.<br>• Стрелки ↑ / ↓ — яркость.<br>• Стрелки ← / → — интенсивность дождя.<br>• L — молния.<br>• H — показать / скрыть подсказку.<br>• + / − — детализация ASCII.<br>• Зажми левую кнопку мыши и веди — протирание стекла.<br>• Esc / Q — остановить анимацию (повторное нажатие пробела запускает снова).</p>
+  <p>Совет: на телефоне режим «Эконом» уменьшает число символов и капель ради плавности.</p>
 </div>
 <script>
 (() => {
@@ -52,6 +68,8 @@ const sceneCtx = sceneCanvas.getContext('2d', { alpha:false });
 const hud = document.getElementById('hud');
 const stats = document.getElementById('stats');
 const hint = document.getElementById('hint');
+const isMobile = matchMedia('(pointer: coarse), (max-width: 700px)').matches;
+let qualityMode = 'auto', renderScale = isMobile ? 0.72 : 1, fpsLimit = isMobile ? 24 : 30, lastRender = 0, slowFrames = 0, fastFrames = 0;
 
 const RAMP = " .'`,:;-~+=*roO%8&#@";
 const GLYPHS = " .,:;|()_^/\\-~+=*oO%&#@";
@@ -65,11 +83,12 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[(Math.random()*a.length)|0];
 
 function resize() {
-  dpr=Math.min(window.devicePixelRatio||1,1.5);
+  const scale = qualityMode==='eco' ? (isMobile?.58:.85) : qualityMode==='standard' ? (isMobile?.72:1) : renderScale;
+  dpr=Math.min(window.devicePixelRatio||1,isMobile?.85:1.25)*scale;
   W=Math.max(1,Math.floor(innerWidth*dpr)); H=Math.max(1,Math.floor(innerHeight*dpr));
   canvas.width=W; canvas.height=H;
   sceneCanvas.width=W; sceneCanvas.height=H;
-  targetCols=clamp(Math.round(innerWidth/(detail===1?8:detail===2?6:10)),75,250);
+  targetCols=isMobile ? (qualityMode==='eco'?44:qualityMode==='standard'?58:clamp(Math.round(innerWidth/(detail===1?7:detail===2?6:9)),48,76)) : clamp(Math.round(innerWidth/(detail===1?8:detail===2?6:10)),75,190);
   cols=targetCols; rows=Math.max(30,Math.round(cols*H/W));
   cellW=W/cols; cellH=H/rows;
   [bgCanvas,sharpCanvas,fogCanvas].forEach(c=>{if(c){c.width=cols;c.height=rows}});
@@ -142,16 +161,16 @@ function makeCity() {
 }
 function makeDrops() {
   staticDrops=[]; drops=[];wetTrails=[];
-  const count=Math.round(cols*rows*.035);
+  const count=Math.round(cols*rows*(isMobile?.012:.025));
   for(let i=0;i<count;i++) staticDrops.push({x:rand(0,cols),y:rand(0,rows),r:rand(.35,1.4),growth:rand(.008,.035),seed:Math.random()});
-  for(let i=0;i<Math.max(8,cols*.04);i++) drops.push(newDrop(rand(0,cols),rand(0,rows*.55),rand(1.3,2.7)));
+  for(let i=0;i<Math.max(isMobile?4:8,cols*(isMobile?.025:.04));i++) drops.push(newDrop(rand(0,cols),rand(0,rows*.55),rand(1.3,2.7)));
 }
 function newDrop(x,y,r) {return {x,y,r,v:0,t:rand(.1,1),moving:false,sway:rand(0,Math.PI*2),seed:Math.random()};}
-function addDrop(x,y,r) { if(drops.length<Math.min(230,cols*1.3)) drops.push(newDrop(x,y,r)); }
+function addDrop(x,y,r) { if(drops.length<Math.min(isMobile?34:150,cols*(isMobile?.42:1.0))) drops.push(newDrop(x,y,r)); }
 function wipe(x,y,r=3) {
   staticDrops=staticDrops.filter(d=>Math.hypot((d.x-x)*1.5,d.y-y)>r);
   wetTrails.push({x,y,r,life:1});
-  if(wetTrails.length>120)wetTrails.shift();
+  if(wetTrails.length>(isMobile?28:90))wetTrails.shift();
 }
 function update(dt) {
   elapsed+=dt;flash=Math.max(0,flash-dt*3.3);
@@ -174,7 +193,7 @@ function update(dt) {
     d.y+=dy; d.sway+=dt*rand(.5,1.5); d.x+=Math.sin(d.sway)*dt*(d.moving?.8:.15);
     if(dy>.04) {
       wetTrails.push({x:d.x,y:(oldY+d.y)/2,r:Math.max(.5,d.r*.55),life:1});
-      if(Math.random()<dy*.22) staticDrops.push({x:d.x+rand(-.4,.4),y:oldY,r:rand(.3,.6),growth:rand(.01,.025),seed:Math.random()});
+      if(Math.random()<dy*(isMobile?.08:.18)) staticDrops.push({x:d.x+rand(-.4,.4),y:oldY,r:rand(.3,.6),growth:rand(.01,.025),seed:Math.random()});
       d.r=Math.sqrt(Math.max(0,d.r*d.r-.01*dy));
       for(let i=staticDrops.length-1;i>=0;i--) {
         const s=staticDrops[i];
@@ -198,7 +217,7 @@ function update(dt) {
   }
   for(const w of wetTrails) w.life-=dt/4;
   wetTrails=wetTrails.filter(w=>w.life>0);
-  if(staticDrops.length>cols*rows*.07)staticDrops.splice(0,staticDrops.length-Math.round(cols*rows*.06));
+  if(staticDrops.length>cols*rows*(isMobile?.018:.05))staticDrops.splice(0,staticDrops.length-Math.round(cols*rows*(isMobile?.015:.04)));
   for(const c of cars) {c.x+=c.v*dt;if(c.x<-5)c.x=cols+5;if(c.x>cols+5)c.x=-5;}
 }
 function drawCity() {
@@ -230,7 +249,9 @@ function drawDrops() {
     ctx.strokeStyle=`rgba(175,205,235,${.12*w.life})`;ctx.lineWidth=Math.max(.5,r*.35);
     ctx.beginPath();ctx.moveTo(x,y-r*2);ctx.lineTo(x,y+r*2);ctx.stroke();
   }
-  for(const d of staticDrops) {
+  const staticStep=isMobile?2:1;
+  for(let si=0;si<staticDrops.length;si+=staticStep) {
+    const d=staticDrops[si];
     const x=d.x*sx,y=d.y*sy,r=Math.max(.7,d.r*sx);
     ctx.fillStyle='rgba(180,205,240,.15)';ctx.beginPath();ctx.ellipse(x,y,r,r*1.15,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='rgba(220,238,255,.28)';ctx.lineWidth=.45;ctx.stroke();
@@ -238,22 +259,26 @@ function drawDrops() {
   const all=drops;
   for(const d of all) {
     const x=d.x*sx,y=d.y*sy,rx=Math.max(1,d.r*sx),ry=rx*(d.moving?1.3:1.12);
-    ctx.save();
-    ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.clip();
-    // Lens: flip and magnify the city inside each drop.
-    const zoom=2.15;
-    ctx.globalAlpha=.92;
-    ctx.drawImage(sharpCanvas,0,0,cols,rows,
-      x-rx*zoom,y-ry*zoom,rx*2*zoom,ry*2*zoom);
-    ctx.fillStyle='rgba(80,135,185,.10)';ctx.fillRect(x-rx,y-ry,rx*2,ry*2);
-    ctx.restore();
+    if(!isMobile) {
+      ctx.save();
+      ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.clip();
+      // Lens: flip and magnify the city inside each drop.
+      const zoom=2.15;
+      ctx.globalAlpha=.92;
+      ctx.drawImage(sharpCanvas,0,0,cols,rows,x-rx*zoom,y-ry*zoom,rx*2*zoom,ry*2*zoom);
+      ctx.fillStyle='rgba(80,135,185,.10)';ctx.fillRect(x-rx,y-ry,rx*2,ry*2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle='rgba(105,155,205,.13)';ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fill();
+    }
     ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
     ctx.strokeStyle='rgba(200,230,255,.52)';ctx.lineWidth=Math.max(.65,rx*.18);ctx.stroke();
     // Highlight and specular sparkle.
     const gx=x-rx*.34,gy=y-ry*.38;
-    const grad=ctx.createRadialGradient(gx,gy,.1,gx,gy,Math.max(1,rx*.6));
-    grad.addColorStop(0,'rgba(255,255,255,.92)');grad.addColorStop(.35,'rgba(220,240,255,.38)');grad.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(gx,gy,Math.max(.7,rx*.45),Math.max(.7,ry*.28),-.5,0,Math.PI*2);ctx.fill();
+    if(!isMobile){const grad=ctx.createRadialGradient(gx,gy,.1,gx,gy,Math.max(1,rx*.6));
+      grad.addColorStop(0,'rgba(255,255,255,.92)');grad.addColorStop(.35,'rgba(220,240,255,.38)');grad.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(gx,gy,Math.max(.7,rx*.45),Math.max(.7,ry*.28),-.5,0,Math.PI*2);ctx.fill();
+    } else {ctx.fillStyle='rgba(255,255,255,.62)';ctx.fillRect(gx,gy,Math.max(1,rx*.28),Math.max(1,ry*.16));}
   }
   ctx.restore();
 }
@@ -261,7 +286,7 @@ let sampleCanvas=document.createElement('canvas'), sampleCtx=sampleCanvas.getCon
 function render(dt) {
   drawCity();drawDrops();
   // ASCII conversion reads the composed scene, then paints glyphs to the main canvas.
-  sampleCanvas.width=cols;sampleCanvas.height=rows;
+  if(sampleCanvas.width!==cols||sampleCanvas.height!==rows){sampleCanvas.width=cols;sampleCanvas.height=rows;}
   sampleCtx.drawImage(sceneCanvas,0,0,cols,rows);
   let data;
   try { data=sampleCtx.getImageData(0,0,cols,rows).data; } catch(e) { return; }
@@ -290,9 +315,18 @@ function render(dt) {
   } else hud.style.opacity='0';
 }
 function loop(now) {
-  const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
-  if(!paused) update(dt);
-  render(dt);
+  const dt=Math.min(.08,Math.max(0,(now-lastRender)/1000));
+  if(now-lastRender>=1000/fpsLimit){
+    if(!paused) update(dt);
+    const t0=performance.now();
+    render(dt);lastRender=now;
+    if(isMobile&&qualityMode==='auto'){
+      const cost=performance.now()-t0;
+      if(cost>48){slowFrames++;fastFrames=0;} else if(cost<24){fastFrames++;slowFrames=0;} else {slowFrames=0;fastFrames=0;}
+      if(slowFrames>35&&renderScale>.52){renderScale=Math.max(.52,renderScale-.08);fpsLimit=20;slowFrames=0;resize();lastRender=now;}
+      if(fastFrames>100&&renderScale<.72){renderScale=Math.min(.72,renderScale+.04);fpsLimit=24;fastFrames=0;resize();lastRender=now;}
+    }
+  }
   requestAnimationFrame(loop);
 }
 function setHud(seconds=3) {hudUntil=performance.now()+seconds*1000;hudOn=true;}
@@ -307,6 +341,7 @@ function handleKey(e) {
   else if(e.key==='ArrowLeft'){rainPower=Math.max(.2,rainPower/1.25);setHud();}
   else if(e.key.toLowerCase()==='l')lightning();
   else if(e.key.toLowerCase()==='h'){hudOn=!hudOn;setHud(8);}
+  else if(e.key.toLowerCase()==='m'){document.getElementById('help').classList.toggle('open');}
   else if(e.key==='+'||e.key==='='){detail=detail===1?2:3;resize();setHud();}
   else if(e.key==='-'){detail=detail===3?2:1;resize();setHud();}
 }
@@ -318,9 +353,20 @@ function endPointer(){mouseDown=false;lastPointer=null;}
 canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);canvas.addEventListener('pointerleave',e=>{if(e.buttons===0)endPointer();});
 document.getElementById('pauseBtn').addEventListener('click',()=>{paused=!paused;setHud();});
 document.getElementById('boltBtn').addEventListener('click',lightning);
+document.getElementById('rainDown').addEventListener('click',()=>{rainPower=Math.max(.2,rainPower/1.25);setHud();});
+document.getElementById('rainUp').addEventListener('click',()=>{rainPower=Math.min(4,rainPower*1.25);setHud();});
+document.getElementById('brightDown').addEventListener('click',()=>{brightness=Math.max(.4,brightness/1.18);setHud();});
+document.getElementById('brightUp').addEventListener('click',()=>{brightness=Math.min(8,brightness*1.18);setHud();});
+document.getElementById('qualityBtn').addEventListener('click',()=>{qualityMode=qualityMode==='auto'?'eco':qualityMode==='eco'?'standard':'auto';renderScale=isMobile?.72:1;fpsLimit=isMobile?24:30;document.getElementById('qualityBtn').textContent='Качество: '+({auto:'авто',eco:'эконом',standard:'стандарт'}[qualityMode]);resize();setHud(5);});
+document.getElementById('helpBtn').addEventListener('click',()=>document.getElementById('help').classList.add('open'));
+document.getElementById('closeHelp').addEventListener('click',()=>document.getElementById('help').classList.remove('open'));
 resize();
+document.getElementById('qualityBtn').textContent='Качество: '+(isMobile?'авто':'стандарт');
 requestAnimationFrame(loop);
 })();
 </script>
+</body>
+</html>
+
 </body>
 </html>
