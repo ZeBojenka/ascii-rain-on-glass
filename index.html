@@ -24,6 +24,13 @@
   #panel { position:fixed; right:14px; top:66px; z-index:5; display:none; width:min(340px,calc(100vw - 24px)); padding:10px; gap:7px; grid-template-columns:repeat(3,minmax(0,1fr)); background:rgba(5,10,18,.88); border:1px solid rgba(200,225,230,.25); border-radius:12px; backdrop-filter:blur(12px); box-shadow:0 8px 30px #0008; }
   #panel.open { display:grid; }
   #panel button { min-width:0; min-height:40px; padding:8px 5px; font-size:12px; white-space:nowrap; }
+  #radioPlayer { grid-column:1/-1; display:grid; grid-template-columns:auto 1fr; gap:8px 10px; align-items:center; padding:10px; border:1px solid rgba(170,220,205,.16); border-radius:9px; background:rgba(20,34,42,.42); }
+  #radioTitle { color:#e8f4ef; font-size:12px; font-weight:700; }
+  #radioStatus { color:#9eb8b1; font-size:10px; margin-top:3px; }
+  #radioToggle { min-width:74px; min-height:38px; }
+  #radioVolume { grid-column:1/-1; display:flex; align-items:center; gap:9px; color:#b8ccc7; font-size:11px; }
+  #radioVolume input { flex:1; min-width:0; accent-color:#9bc9b7; }
+  #radioVolumeValue { width:32px; text-align:right; font-variant-numeric:tabular-nums; }
   #sizeControl { grid-column:1/-1; position:static; display:grid; grid-template-columns:1fr 1.3fr 1fr; gap:7px; align-items:center; }
   #sizeValue { min-width:0; padding:10px 4px; font-size:12px; }
   #touchbar { display:contents; }
@@ -57,7 +64,13 @@
   <button id="rainDown">Дождь −</button><button id="rainUp">Дождь +</button><button id="qualityBtn">Качество: авто</button>
   <button id="brightDown">Яркость −</button><button id="brightUp">Яркость +</button><button id="pauseBtn">Пауза</button>
   <button id="boltBtn">Молния</button><button id="helpBtn">Управление</button><button id="hudBtn">Скрыть HUD</button>
+  <section id="radioPlayer" aria-label="Интернет-радио">
+    <button id="radioToggle" type="button">▶ Слушать</button>
+    <div><div id="radioTitle">PLAZA ONE</div><div id="radioStatus" role="status">Интернет-радио · выключено</div></div>
+    <label id="radioVolume"><span>Громкость</span><input id="radioVolumeInput" type="range" min="0" max="100" value="55"><span id="radioVolumeValue">55%</span></label>
+  </section>
 </div>
+<audio id="radioAudio" preload="none" src="https://radio.plaza.one/mp3"></audio>
 <div id="help">
   <button class="close" id="closeHelp">Закрыть ✕</button>
   <h2>ASCII RAIN ON GLASS — управление</h2>
@@ -392,6 +405,49 @@ document.getElementById('hudBtn').addEventListener('click',toggleHud);
 const menuBtn=document.getElementById('menuBtn'), panel=document.getElementById('panel');
 menuBtn.addEventListener('click',()=>{const open=panel.classList.toggle('open');menuBtn.setAttribute('aria-expanded',String(open));menuBtn.textContent=open?'✕':'☰';});
 document.getElementById('closeHelp').addEventListener('click',()=>document.getElementById('help').classList.remove('open'));
+// Internet radio: try audible autoplay on every app opening.
+// If the WebView/browser blocks it, start on the user's first interaction anywhere.
+const radioAudio=document.getElementById('radioAudio');
+const radioToggle=document.getElementById('radioToggle');
+const radioStatus=document.getElementById('radioStatus');
+const radioVolume=document.getElementById('radioVolumeInput');
+const radioVolumeValue=document.getElementById('radioVolumeValue');
+let savedRadioVolume=55;
+try { const stored=localStorage.getItem('asciiRainRadioVolume'); if(stored!==null)savedRadioVolume=clamp(Number(stored)||0,0,100); } catch(_) {}
+radioVolume.value=String(savedRadioVolume);radioAudio.volume=savedRadioVolume/100;radioVolumeValue.textContent=savedRadioVolume+'%';
+let radioStartedByGesture=false;
+async function startRadio(showFailure=true){
+  if(!radioAudio.paused) return true;
+  radioStatus.textContent='Подключение…';
+  try {
+    await radioAudio.play();
+    radioStartedByGesture=true;
+    return true;
+  } catch(err) {
+    if(showFailure) radioStatus.textContent='Коснись экрана, чтобы включить радио';
+    return false;
+  }
+}
+radioToggle.addEventListener('click',async()=>{
+  if(!radioAudio.paused){radioAudio.pause();return;}
+  await startRadio(true);
+});
+// First try immediately when the app opens. Some Telegram WebViews allow this.
+startRadio(false).then(ok=>{
+  if(!ok) radioStatus.textContent='Коснись экрана, чтобы включить радио';
+});
+// If autoplay is blocked, any first real user gesture unlocks audio playback.
+function unlockRadioFromGesture(){
+  if(radioStartedByGesture || !radioAudio.paused) return;
+  startRadio(false);
+}
+document.addEventListener('pointerdown',unlockRadioFromGesture,{once:true,capture:true});
+document.addEventListener('keydown',unlockRadioFromGesture,{once:true,capture:true});
+radioAudio.addEventListener('playing',()=>{radioStartedByGesture=true;radioToggle.textContent='Ⅱ Пауза';radioStatus.textContent='PLAZA ONE · эфир';});
+radioAudio.addEventListener('pause',()=>{radioToggle.textContent='▶ Слушать';if(!radioAudio.ended)radioStatus.textContent='Интернет-радио · пауза';});
+radioAudio.addEventListener('waiting',()=>{radioStatus.textContent='Буферизация…';});
+radioAudio.addEventListener('error',()=>{radioStatus.textContent='Поток недоступен. Проверь соединение.';radioToggle.textContent='▶ Повторить';});
+radioVolume.addEventListener('input',()=>{const v=Number(radioVolume.value);radioAudio.volume=v/100;radioVolumeValue.textContent=v+'%';try{localStorage.setItem('asciiRainRadioVolume',String(v));}catch(_){}});
 resize();
 document.getElementById('qualityBtn').textContent='Качество: '+(isMobile?'авто':'стандарт');
 requestAnimationFrame(loop);
