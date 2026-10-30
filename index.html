@@ -20,20 +20,28 @@
   }
   #hud .title { color:#f0f8f2; font-weight:800; letter-spacing:.12em; }
   #hint { color:#a8c0bb; }
-  #touchbar { position:fixed; right:12px; bottom:12px; display:flex; gap:7px; z-index:3; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100vw - 24px); }
-  #panel { position:fixed; right:12px; top:12px; z-index:4; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:min(520px,calc(100vw - 24px)); }
+  #menuBtn { position:fixed; right:14px; top:14px; z-index:6; width:44px; height:44px; padding:0; border-radius:50%; font-size:20px; background:rgba(5,10,18,.82); backdrop-filter:blur(8px); }
+  #panel { position:fixed; right:14px; top:66px; z-index:5; display:none; width:min(340px,calc(100vw - 24px)); padding:10px; gap:7px; grid-template-columns:repeat(3,minmax(0,1fr)); background:rgba(5,10,18,.88); border:1px solid rgba(200,225,230,.25); border-radius:12px; backdrop-filter:blur(12px); box-shadow:0 8px 30px #0008; }
+  #panel.open { display:grid; }
+  #panel button { min-width:0; min-height:40px; padding:8px 5px; font-size:12px; white-space:nowrap; }
+  #sizeControl { grid-column:1/-1; position:static; display:grid; grid-template-columns:1fr 1.3fr 1fr; gap:7px; align-items:center; }
+  #sizeValue { min-width:0; padding:10px 4px; font-size:12px; }
+  #touchbar { display:contents; }
+  #hud.hidden { display:none; }
   #help { position:fixed; inset:0; z-index:8; display:none; overflow:auto; padding:22px; background:rgba(3,7,14,.94); color:#dcebe8; font:14px/1.65 ui-monospace,monospace; }
   #help.open {display:block} #help h2{margin-top:0;color:#fff} #help .close{position:sticky;top:0;float:right}
-  #touchbar button,#panel button { min-height:38px; touch-action:manipulation; }
-  #sizeControl { position:fixed; left:12px; bottom:12px; z-index:4; display:flex; gap:6px; align-items:center; }
-  #sizeValue { min-width:58px; text-align:center; color:#e6f4f2; background:rgba(5,10,18,.72); border:1px solid rgba(200,225,230,.25); border-radius:6px; padding:10px 6px; font-size:12px; }
-  @media (max-width:600px) { #hud {font-size:10px; left:7px;top:7px;max-width:calc(100vw - 14px);padding:7px 9px} #touchbar{right:7px;bottom:7px;left:7px;justify-content:center} #panel{top:auto;bottom:58px;left:7px;right:7px;justify-content:center;max-width:none} #panel button{padding:8px 10px;font-size:11px} #sizeControl{left:7px;bottom:108px} }
+  #panel button,#menuBtn { touch-action:manipulation; }
+  #sizeValue { text-align:center; color:#e6f4f2; background:rgba(5,10,18,.72); border:1px solid rgba(200,225,230,.25); border-radius:6px; }
+  @media (max-width:600px) {
+    #menuBtn { right:10px; top:10px; width:42px; height:42px; }
+    #panel { top:auto; right:8px; bottom:calc(8px + env(safe-area-inset-bottom)); width:min(330px,calc(100vw - 16px)); }
+    #hud { font-size:10px; left:7px; top:7px; max-width:calc(100vw - 62px); padding:7px 9px; }
+  }
   button {
     border:1px solid rgba(200,225,230,.25); color:#e6f4f2; background:rgba(5,10,18,.62);
     padding:9px 12px; border-radius:6px; font:inherit; font-size:12px;
   }
   button:active { background:rgba(55,85,100,.8); }
-  @media (max-width:600px) { #hud {font-size:10px; left:7px;top:7px;max-width:calc(100vw - 14px);padding:7px 9px} #touchbar{right:7px;bottom:7px} }
 </style>
 </head>
 <body>
@@ -43,22 +51,20 @@
   <div id="stats">Ночной город за запотевшим стеклом</div>
   <div id="hint">Пробел — пауза · ↑/↓ яркость · ←/→ дождь · L — молния · H — подсказка · тянуть мышью/пальцем — протереть стекло · +/- — детализация</div>
 </div>
-<div id="panel">
-  <button id="rainDown">Дождь −</button><button id="rainUp">Дождь +</button>
-  <button id="brightDown">Яркость −</button><button id="brightUp">Яркость +</button>
-  <button id="qualityBtn">Качество: авто</button><button id="helpBtn">Управление</button>
-</div>
-<div id="sizeControl"><button id="sizeDown" aria-label="Уменьшить символы">A−</button><span id="sizeValue">Размер 9</span><button id="sizeUp" aria-label="Увеличить символы">A+</button></div>
-<div id="touchbar">
-  <button id="pauseBtn">Пауза</button><button id="boltBtn">Молния</button>
+<button id="menuBtn" aria-label="Открыть управление" aria-expanded="false">☰</button>
+<div id="panel" aria-label="Панель управления">
+  <div id="sizeControl"><button id="sizeDown" aria-label="Уменьшить символы">A−</button><span id="sizeValue">Размер 12</span><button id="sizeUp" aria-label="Увеличить символы">A+</button></div>
+  <button id="rainDown">Дождь −</button><button id="rainUp">Дождь +</button><button id="qualityBtn">Качество: авто</button>
+  <button id="brightDown">Яркость −</button><button id="brightUp">Яркость +</button><button id="pauseBtn">Пауза</button>
+  <button id="boltBtn">Молния</button><button id="helpBtn">Управление</button><button id="hudBtn">Скрыть HUD</button>
 </div>
 <div id="help">
   <button class="close" id="closeHelp">Закрыть ✕</button>
   <h2>ASCII RAIN ON GLASS — управление</h2>
   <h3>Телефон / планшет</h3>
-  <p>• Проводи пальцем по стеклу, чтобы протереть его.<br>• Пауза — остановить / продолжить симуляцию.<br>• Молния — вызвать вспышку.<br>• Дождь − / + — изменить интенсивность капель.<br>• Яркость − / + — изменить яркость ASCII-сцены.<br>• Качество — переключить авто / эконом / стандарт.<br>• A− / A+ — изменить размер символов от 4 до 20 px.</p>
+  <p>• Проводи пальцем по стеклу, чтобы протереть его.<br>• Пауза — остановить / продолжить симуляцию.<br>• Молния — вызвать вспышку.<br>• Дождь − / + — изменить интенсивность капель.<br>• Яркость − / + — изменить яркость ASCII-сцены.<br>• Качество — переключить авто / эконом / стандарт.<br>• A− / A+ — изменить размер символов от 4 до 20 px (стартовый размер 12 px). • ☰ — открыть панель управления; HUD можно скрыть кнопкой в панели или клавишей H.</p>
   <h3>Компьютер</h3>
-  <p>• Пробел — пауза.<br>• Стрелки ↑ / ↓ — яркость.<br>• Стрелки ← / → — интенсивность дождя.<br>• L — молния.<br>• H — показать / скрыть подсказку.<br>• + / − — изменить размер символов от 4 до 20 px.<br>• Зажми левую кнопку мыши и веди — протирание стекла.<br>• Esc / Q — остановить анимацию (повторное нажатие пробела запускает снова).</p>
+  <p>• Пробел — пауза.<br>• Стрелки ↑ / ↓ — яркость.<br>• Стрелки ← / → — интенсивность дождя.<br>• L — молния.<br>• H — показать / скрыть HUD.<br>• + / − — изменить размер символов от 4 до 20 px.<br>• Зажми левую кнопку мыши и веди — протирание стекла.<br>• Esc / Q — остановить анимацию (повторное нажатие пробела запускает снова).</p>
   <p>Совет: режимы качества меняют плотность символов, но сохраняют чёткость изображения. «Эконом» уменьшает число ячеек ради плавности.</p>
 </div>
 <script>
@@ -77,8 +83,8 @@ let qualityMode = 'auto', mobileCols = 76, fpsLimit = isMobile ? 24 : 30, lastRe
 const RAMP = " .'`,:;-~+=*roO%8&#@";
 const GLYPHS = " .,:;|()_^/\\-~+=*oO%&#@";
 let W=0,H=0,dpr=1,cols=0,rows=0,cellW=9,cellH=13,brightness=2.2,rainPower=1;
-let cellSize=9, resizeQueued=false, lastViewportW=0, lastViewportH=0;
-let paused=false, hudOn=true, hudUntil=performance.now()+9000, flash=0,nextFlash=12,elapsed=0,last=performance.now(),frame=0;
+let cellSize=12, resizeQueued=false, lastViewportW=0, lastViewportH=0;
+let paused=false, hudOn=true, hudVisible=true, hudUntil=performance.now()+9000, flash=0,nextFlash=12,elapsed=0,last=performance.now(),frame=0;
 let bgCanvas, bgCtx, sharpCanvas, sharpCtx, fogCanvas, fogCtx, colsBuf, rowsBuf;
 let buildings=[], lights=[], cars=[], drops=[], staticDrops=[], wetTrails=[];
 let mouseDown=false,lastPointer=null, detail=1, targetCols=150;
@@ -342,7 +348,8 @@ function loop(now) {
   }
   requestAnimationFrame(loop);
 }
-function setHud(seconds=3) {hudUntil=performance.now()+seconds*1000;hudOn=true;}
+function setHud(seconds=3) {hudUntil=performance.now()+seconds*1000;hudOn=true; if(hudVisible) hud.classList.remove('hidden');}
+function toggleHud(){hudVisible=!hudVisible;hud.classList.toggle('hidden',!hudVisible);document.getElementById('hudBtn').textContent=hudVisible?'Скрыть HUD':'Показать HUD';}
 function lightning(){flash=1;nextFlash=elapsed+rand(15,30);setHud();}
 function handleKey(e) {
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','+','=','-'].includes(e.key))e.preventDefault();
@@ -353,7 +360,7 @@ function handleKey(e) {
   else if(e.key==='ArrowRight'){rainPower=Math.min(4,rainPower*1.25);setHud();}
   else if(e.key==='ArrowLeft'){rainPower=Math.max(.2,rainPower/1.25);setHud();}
   else if(e.key.toLowerCase()==='l')lightning();
-  else if(e.key.toLowerCase()==='h'){hudOn=!hudOn;setHud(8);}
+  else if(e.key.toLowerCase()==='h'){toggleHud();}
   else if(e.key.toLowerCase()==='m'){document.getElementById('help').classList.toggle('open');}
   else if(e.key==='+'||e.key==='='){changeCellSize(-1);}
   else if(e.key==='-'){changeCellSize(1);}
@@ -370,7 +377,7 @@ canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!=
 canvas.addEventListener('pointermove',e=>{if(!mouseDown)return;e.preventDefault();const rect=canvas.getBoundingClientRect();const p={x:clamp((e.clientX-rect.left)/rect.width*cols,0,cols-1),y:clamp((e.clientY-rect.top)/rect.height*rows,0,rows-1)};if(lastPointer){const dist=Math.hypot(p.x-lastPointer.x,p.y-lastPointer.y);const n=Math.max(1,Math.ceil(dist*.8));for(let i=1;i<=n;i++)wipe(lastPointer.x+(p.x-lastPointer.x)*i/n,lastPointer.y+(p.y-lastPointer.y)*i/n,2.8);}lastPointer=p;},{passive:false});
 function endPointer(e){mouseDown=false;lastPointer=null;}
 canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);canvas.addEventListener('lostpointercapture',endPointer);
-document.getElementById('pauseBtn').addEventListener('click',()=>{paused=!paused;setHud();});
+document.getElementById('pauseBtn').addEventListener('click',()=>{paused=!paused;document.getElementById('pauseBtn').textContent=paused?'Продолжить':'Пауза';setHud();});
 document.getElementById('boltBtn').addEventListener('click',lightning);
 document.getElementById('rainDown').addEventListener('click',()=>{rainPower=Math.max(.2,rainPower/1.25);setHud();});
 document.getElementById('rainUp').addEventListener('click',()=>{rainPower=Math.min(4,rainPower*1.25);setHud();});
@@ -381,6 +388,9 @@ document.getElementById('sizeDown').addEventListener('click',()=>changeCellSize(
 document.getElementById('sizeUp').addEventListener('click',()=>changeCellSize(1));
 document.getElementById('qualityBtn').addEventListener('click',()=>{qualityMode=qualityMode==='auto'?'eco':qualityMode==='eco'?'standard':'auto';mobileCols=76;fpsLimit=isMobile?24:30;document.getElementById('qualityBtn').textContent='Качество: '+({auto:'авто',eco:'эконом',standard:'стандарт'}[qualityMode]);resize();setHud(5);});
 document.getElementById('helpBtn').addEventListener('click',()=>document.getElementById('help').classList.add('open'));
+document.getElementById('hudBtn').addEventListener('click',toggleHud);
+const menuBtn=document.getElementById('menuBtn'), panel=document.getElementById('panel');
+menuBtn.addEventListener('click',()=>{const open=panel.classList.toggle('open');menuBtn.setAttribute('aria-expanded',String(open));menuBtn.textContent=open?'✕':'☰';});
 document.getElementById('closeHelp').addEventListener('click',()=>document.getElementById('help').classList.remove('open'));
 resize();
 document.getElementById('qualityBtn').textContent='Качество: '+(isMobile?'авто':'стандарт');
