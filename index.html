@@ -56,7 +56,7 @@
   <p>• Проводи пальцем по стеклу, чтобы протереть его.<br>• Пауза — остановить / продолжить симуляцию.<br>• Молния — вызвать вспышку.<br>• Дождь − / + — изменить интенсивность капель.<br>• Яркость − / + — изменить яркость ASCII-сцены.<br>• Качество — переключить авто / эконом / стандарт.</p>
   <h3>Компьютер</h3>
   <p>• Пробел — пауза.<br>• Стрелки ↑ / ↓ — яркость.<br>• Стрелки ← / → — интенсивность дождя.<br>• L — молния.<br>• H — показать / скрыть подсказку.<br>• + / − — детализация ASCII.<br>• Зажми левую кнопку мыши и веди — протирание стекла.<br>• Esc / Q — остановить анимацию (повторное нажатие пробела запускает снова).</p>
-  <p>Совет: на телефоне режим «Эконом» уменьшает число символов и капель ради плавности.</p>
+  <p>Совет: режимы качества меняют плотность символов, но сохраняют чёткость изображения. «Эконом» уменьшает число ячеек ради плавности.</p>
 </div>
 <script>
 (() => {
@@ -69,7 +69,7 @@ const hud = document.getElementById('hud');
 const stats = document.getElementById('stats');
 const hint = document.getElementById('hint');
 const isMobile = matchMedia('(pointer: coarse), (max-width: 700px)').matches;
-let qualityMode = 'auto', renderScale = isMobile ? 0.72 : 1, fpsLimit = isMobile ? 24 : 30, lastRender = 0, slowFrames = 0, fastFrames = 0;
+let qualityMode = 'auto', mobileCols = 76, fpsLimit = isMobile ? 24 : 30, lastRender = 0, slowFrames = 0, fastFrames = 0;
 
 const RAMP = " .'`,:;-~+=*roO%8&#@";
 const GLYPHS = " .,:;|()_^/\\-~+=*oO%&#@";
@@ -83,12 +83,13 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pick=a=>a[(Math.random()*a.length)|0];
 
 function resize() {
-  const scale = qualityMode==='eco' ? (isMobile?.58:.85) : qualityMode==='standard' ? (isMobile?.72:1) : renderScale;
-  dpr=Math.min(window.devicePixelRatio||1,isMobile?.85:1.25)*scale;
+  // Keep the output canvas at a real device-pixel resolution. Quality modes
+  // change ASCII cell count, never shrink the backing canvas (which caused blur).
+  dpr=Math.min(window.devicePixelRatio||1, isMobile ? 1.5 : 1.5);
   W=Math.max(1,Math.floor(innerWidth*dpr)); H=Math.max(1,Math.floor(innerHeight*dpr));
   canvas.width=W; canvas.height=H;
   sceneCanvas.width=W; sceneCanvas.height=H;
-  targetCols=isMobile ? (qualityMode==='eco'?44:qualityMode==='standard'?58:clamp(Math.round(innerWidth/(detail===1?7:detail===2?6:9)),48,76)) : clamp(Math.round(innerWidth/(detail===1?8:detail===2?6:10)),75,190);
+  targetCols=isMobile ? (qualityMode==='eco'?60:qualityMode==='standard'?88:mobileCols) : clamp(Math.round(innerWidth/(detail===1?8:detail===2?6:10)),75,190);
   cols=targetCols; rows=Math.max(30,Math.round(cols*H/W));
   cellW=W/cols; cellH=H/rows;
   [bgCanvas,sharpCanvas,fogCanvas].forEach(c=>{if(c){c.width=cols;c.height=rows}});
@@ -322,9 +323,10 @@ function loop(now) {
     render(dt);lastRender=now;
     if(isMobile&&qualityMode==='auto'){
       const cost=performance.now()-t0;
-      if(cost>48){slowFrames++;fastFrames=0;} else if(cost<24){fastFrames++;slowFrames=0;} else {slowFrames=0;fastFrames=0;}
-      if(slowFrames>35&&renderScale>.52){renderScale=Math.max(.52,renderScale-.08);fpsLimit=20;slowFrames=0;resize();lastRender=now;}
-      if(fastFrames>100&&renderScale<.72){renderScale=Math.min(.72,renderScale+.04);fpsLimit=24;fastFrames=0;resize();lastRender=now;}
+      if(cost>42){slowFrames++;fastFrames=0;} else if(cost<25){fastFrames++;slowFrames=0;} else {slowFrames=0;fastFrames=0;}
+      // Adaptive quality changes character count, not pixel density.
+      if(slowFrames>24&&mobileCols>58){mobileCols=Math.max(58,mobileCols-6);fpsLimit=20;slowFrames=0;resize();lastRender=now;}
+      if(fastFrames>90&&mobileCols<82){mobileCols=Math.min(82,mobileCols+2);fpsLimit=24;fastFrames=0;resize();lastRender=now;}
     }
   }
   requestAnimationFrame(loop);
@@ -357,7 +359,7 @@ document.getElementById('rainDown').addEventListener('click',()=>{rainPower=Math
 document.getElementById('rainUp').addEventListener('click',()=>{rainPower=Math.min(4,rainPower*1.25);setHud();});
 document.getElementById('brightDown').addEventListener('click',()=>{brightness=Math.max(.4,brightness/1.18);setHud();});
 document.getElementById('brightUp').addEventListener('click',()=>{brightness=Math.min(8,brightness*1.18);setHud();});
-document.getElementById('qualityBtn').addEventListener('click',()=>{qualityMode=qualityMode==='auto'?'eco':qualityMode==='eco'?'standard':'auto';renderScale=isMobile?.72:1;fpsLimit=isMobile?24:30;document.getElementById('qualityBtn').textContent='Качество: '+({auto:'авто',eco:'эконом',standard:'стандарт'}[qualityMode]);resize();setHud(5);});
+document.getElementById('qualityBtn').addEventListener('click',()=>{qualityMode=qualityMode==='auto'?'eco':qualityMode==='eco'?'standard':'auto';mobileCols=76;fpsLimit=isMobile?24:30;document.getElementById('qualityBtn').textContent='Качество: '+({auto:'авто',eco:'эконом',standard:'стандарт'}[qualityMode]);resize();setHud(5);});
 document.getElementById('helpBtn').addEventListener('click',()=>document.getElementById('help').classList.add('open'));
 document.getElementById('closeHelp').addEventListener('click',()=>document.getElementById('help').classList.remove('open'));
 resize();
@@ -365,8 +367,5 @@ document.getElementById('qualityBtn').textContent='Качество: '+(isMobile
 requestAnimationFrame(loop);
 })();
 </script>
-</body>
-</html>
-
 </body>
 </html>
